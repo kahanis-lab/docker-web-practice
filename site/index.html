@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Docker Web Practice</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Arial, sans-serif;
+      color: #ffffff;
+      background: linear-gradient(135deg, #0f172a, #1d4ed8);
+    }
+
+    .card {
+      width: min(90%, 680px);
+      padding: 48px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 24px;
+      background: rgba(15, 23, 42, 0.8);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 999px;
+      color: #93c5fd;
+      background: rgba(59, 130, 246, 0.18);
+      font-weight: bold;
+    }
+
+    h1 {
+      margin: 24px 0 12px;
+      font-size: 44px;
+    }
+
+    .description {
+      color: #cbd5e1;
+      line-height: 1.7;
+    }
+
+    ul {
+      margin-top: 28px;
+      padding-left: 20px;
+      line-height: 1.9;
+    }
+
+    .success {
+      margin-top: 28px;
+      color: #86efac;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <span class="badge">NGINX + BIND MOUNT</span>
+
+    <h1>Docker Web Practice</h1>
+
+    <p class="description">
+      Dockerfile로 만든 커스텀 Nginx 컨테이너가 정상적으로 실행 중입니다.
+    </p>
+
+    <ul>
+      <li>Custom Docker Image</li>
+      <li>Nginx Web Server</li>
+      <li>Port Mapping</li>
+    </ul>
+
+   <p class="success">✓ Updated without rebuild or restart.</p>
+  </main>
+</body>
+</html>
