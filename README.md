@@ -44,7 +44,7 @@ Windows 11과 Docker Desktop 환경에서 Git/GitHub 저장소를 처음부터 �
 | Bind Mount 실시간 반영 | 완료 | [19. Bind Mount](#19-bind-mount) |
 | Docker Volume 영속성 | 완료 | [20. Docker Volume](#20-docker-volume) |
 | 브랜치 생성 및 원격 Push | 완료 | [22. 브랜치와 Pull Request](#22-브랜치와-pull-request) |
-| Pull Request 생성 및 Merge | 진행 예정 | [22. 브랜치와 Pull Request](#22-브랜치와-pull-request) |
+| Pull Request 생성 및 Merge | 완료 | [22. 브랜치와 Pull Request](#22-브랜치와-pull-request) |
 
 ---
 
@@ -132,7 +132,7 @@ git config --global init.defaultBranch main
 
 `user.name`은 GitHub 로그인 아이디와 반드시 같아야 하는 값은 아닙니다. Git 커밋에 기록될 작성자 이름입니다. 이메일은 공개 저장소에서 노출될 수 있으므로 README와 스크린샷에서는 마스킹합니다.
 
-![Git 사용자 설정](<images/git 아이디이멜브랜치확인.png>)
+
 
 ### 5.2 Git 전체 설정 확인
 
@@ -1121,7 +1121,21 @@ git switch main
 git pull origin main
 ```
 
-> Pull Request와 Merge는 이 문서 커밋 후 실제로 수행하고, 완료 화면을 최종 증거로 추가할 예정입니다.
+### 실제 수행 결과
+
+- Pull Request 번호: `#1`
+- Base 브랜치: `main`
+- Compare 브랜치: `docs/readme`
+- 포함된 커밋: 1개
+- 변경 파일: 54개
+- 충돌 여부: 없음
+- Merge 커밋: `c35787c`
+
+`docs/readme`의 README와 검증 이미지가 Pull Request를 통해 `main`에 정상적으로 Merge되었습니다.
+
+![Pull Request 생성 및 검토](<images/pr화면로그.png>)
+
+![Pull Request Merge 완료](<images/merge화면2.png>)
 
 ---
 
