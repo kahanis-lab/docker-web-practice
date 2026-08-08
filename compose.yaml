@@ -1,0 +1,21 @@
+name: docker-web-practice
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: docker-web-practice:compose
+    container_name: compose-web-practice
+    ports:
+      - "${WEB_PORT}:80"
+
+  env-check:
+    image: ubuntu:latest
+    container_name: compose-env-practice
+    environment:
+      PRACTICE_MESSAGE: ${PRACTICE_MESSAGE}
+    command:
+      - sh
+      - -c
+      - 'echo "Environment value: $$PRACTICE_MESSAGE" && sleep infinity'

@@ -1408,3 +1408,428 @@ Volume 삭제는 저장된 데이터도 제거하므로 데이터 영속성 검�
 - 컨테이너 삭제 전후 파일 확인: Docker Volume 영속성 검증
 
 이를 통해 Git/GitHub 버전 관리부터 Linux CLI, Docker 이미지 제작, 네트워크 포트, 호스트 파일 연결, 영속 데이터 저장까지 개발 워크스테이션의 기본 흐름을 직접 구성하고 설명할 수 있게 되었습니다.
+
+
+## 29. 보너스 과제
+
+필수 실습을 완료한 뒤 Docker Compose, 환경변수 관리, GitHub SSH 인증을 추가로 실습하였다. 단순히 명령을 실행하는 데 그치지 않고 Compose 파일의 문법 검사, 멀티 컨테이너 네트워크, 환경변수 주입, 민감 파일 제외, SSH 인증과 원격 저장소 조회까지 각각 검증하였다.
+
+### 29.1 수행 결과 요약
+
+| 보너스 항목 | 상태 | 검증 방법 |
+|---|---|---|
+| Docker Compose 설치 확인 | 완료 | `docker compose version` |
+| Compose 단일 서비스 | 완료 | Nginx Build 및 8083 포트 HTTP 200 확인 |
+| Compose 멀티 컨테이너 | 완료 | `web`, `env-check` 두 서비스가 `Up`인지 확인 |
+| Compose 네트워크 | 완료 | 동일한 기본 네트워크에 두 컨테이너가 연결됐는지 확인 |
+| 환경변수 주입 | 완료 | `.env` 값과 컨테이너 내부 `printenv` 결과 비교 |
+| 환경변수 파일 보호 | 완료 | `.gitignore`와 `git check-ignore`로 `.env` 제외 확인 |
+| Compose 운영 명령 | 완료 | `config`, `up`, `ps`, `logs`, `exec`, `down` 사용 |
+| GitHub SSH 키 | 완료 | 공개 키 등록 후 `ssh -T git@github.com` 인증 성공 |
+| Git 원격 주소 SSH 전환 | 완료 | `git remote -v`, `git ls-remote origin HEAD` 확인 |
+
+---
+
+### 29.2 Docker Compose란?
+
+`docker run`은 컨테이너를 실행할 때마다 이미지, 컨테이너 이름, 포트, 환경변수 등의 옵션을 명령줄에 직접 작성한다. Docker Compose는 이러한 실행 설정을 `compose.yaml` 파일에 코드로 기록하고, 하나 이상의 컨테이너를 같은 프로젝트 단위로 관리하는 도구이다.
+
+이번 실습에서는 다음과 같은 차이를 확인하였다.
+
+| 직접 실행 | Compose 실행 |
+|---|---|
+| 긴 `docker run` 옵션을 매번 입력 | 실행 설정을 `compose.yaml`에 저장 |
+| 컨테이너를 개별적으로 관리 | 여러 서비스를 프로젝트 단위로 관리 |
+| 네트워크를 직접 만들고 연결할 수 있음 | 기본 네트워크를 자동 생성하고 서비스들을 연결 |
+| 실행 명령만 보면 구성을 파악하기 어려움 | YAML 파일을 통해 실행 구성을 재현 가능 |
+
+Compose 버전과 보너스 작업 브랜치를 확인하였다.
+
+```powershell
+git switch -c bonus/compose-env-ssh
+git branch --show-current
+docker compose version
+```
+
+실행 환경에서는 Docker Compose `v5.3.1`이 확인되었다.
+
+![Compose 준비 및 버전 확인](<images/bonus1.png>)
+
+---
+
+### 29.3 Compose 단일 서비스 실행
+
+처음에는 Nginx 웹 서버 하나만 Compose로 실행하였다.
+
+```yaml
+name: docker-web-practice
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: docker-web-practice:compose
+    container_name: compose-web-practice
+    ports:
+      - "8083:80"
+```
+
+각 항목의 역할은 다음과 같다.
+
+- `name`: Compose 프로젝트 이름
+- `services`: 실행할 서비스 목록
+- `web`: 서비스 식별 이름
+- `build.context: .`: 현재 프로젝트 폴더를 Build Context로 사용
+- `dockerfile: Dockerfile`: 사용할 Dockerfile 지정
+- `image`: Build 결과 이미지의 이름과 태그
+- `container_name`: 실제 생성될 컨테이너 이름
+- `8083:80`: Windows의 8083번 포트를 컨테이너의 80번 포트에 연결
+
+YAML은 들여쓰기가 구조를 나타내므로 탭 대신 공백을 사용하고 같은 계층의 들여쓰기를 일치시켜야 한다.
+
+Compose가 YAML을 정상적으로 해석하는지 먼저 검사하였다.
+
+```powershell
+docker compose config
+```
+
+`docker compose config` 결과에서 호스트 포트 `8083`, 컨테이너 포트 `80`, 자동 생성될 `docker-web-practice_default` 네트워크를 확인하였다.
+
+이미지를 Build하고 컨테이너를 백그라운드에서 실행하였다.
+
+```powershell
+docker compose up -d --build
+docker compose ps
+```
+
+- `up`: Compose 파일에 정의된 서비스를 생성하고 실행
+- `-d`: 터미널을 계속 사용할 수 있도록 백그라운드 실행
+- `--build`: 컨테이너 실행 전에 Dockerfile로 이미지 Build
+- `ps`: 현재 Compose 프로젝트에 속한 서비스 상태 확인
+
+![Compose 단일 서비스 Build](<images/compose build 결과.png>)
+
+![Compose 단일 서비스 상태](<images/compose build결과 2.png>)
+
+HTTP 헤더를 요청하여 실제 웹 서버 응답을 확인하였다.
+
+```powershell
+curl.exe -I http://localhost:8083
+```
+
+결과에서 `HTTP/1.1 200 OK`와 `Server: nginx`가 출력되어 포트 매핑과 Nginx 실행이 모두 정상임을 확인하였다.
+
+![Compose HTTP 200 응답](<images/compose curl.png>)
+
+![Compose 단일 서비스 웹페이지](<images/bonus compose 웹.png>)
+
+웹페이지에 이전 Bind Mount 실습 문구가 표시되었지만, 이 Compose 설정에는 Bind Mount가 없다. 이전 실습에서 수정한 `site/index.html`이 Docker Build 과정의 `COPY` 명령으로 이미지에 포함된 것이다. 따라서 표시된 HTML 문구와 현재 컨테이너의 Mount 방식은 구분해서 해석해야 한다.
+
+---
+
+### 29.4 환경변수와 멀티 컨테이너 구성
+
+단일 `web` 서비스에 Ubuntu 기반의 `env-check` 서비스를 추가하였다. 또한 호스트 포트와 메시지를 코드에 고정하지 않고 `.env`에서 가져오도록 변경하였다.
+
+최종 `compose.yaml`은 다음과 같다.
+
+```yaml
+name: docker-web-practice
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: docker-web-practice:compose
+    container_name: compose-web-practice
+    ports:
+      - "${WEB_PORT}:80"
+
+  env-check:
+    image: ubuntu:latest
+    container_name: compose-env-practice
+    environment:
+      PRACTICE_MESSAGE: ${PRACTICE_MESSAGE}
+    command:
+      - sh
+      - -c
+      - 'echo "Environment value: $$PRACTICE_MESSAGE" && sleep infinity'
+```
+
+환경변수 처리 과정은 다음과 같다.
+
+1. Compose가 프로젝트 폴더의 `.env` 파일을 읽는다.
+2. `${WEB_PORT}`와 `${PRACTICE_MESSAGE}`를 `.env` 값으로 치환한다.
+3. `PRACTICE_MESSAGE`를 `env-check` 컨테이너의 환경변수로 전달한다.
+4. `$$PRACTICE_MESSAGE`의 `$$`는 Compose 단계에서 `$` 하나로 전달된다.
+5. 컨테이너 내부 `sh`가 `$PRACTICE_MESSAGE`를 실제 환경변수 값으로 해석한다.
+6. `sleep infinity`가 프로세스를 유지하여 컨테이너가 바로 종료되지 않게 한다.
+
+실습용 `.env`에는 다음 값을 사용하였다.
+
+```dotenv
+WEB_PORT=8084
+PRACTICE_MESSAGE=Environment variable loaded successfully
+```
+
+`.env`는 실행 환경마다 달라질 수 있고 실제 프로젝트에서는 비밀번호나 API 키가 포함될 수 있으므로 Git에서 제외하였다. 대신 필요한 변수 이름을 알려주는 `.env.example`을 작성하였다.
+
+```dotenv
+WEB_PORT=8084
+PRACTICE_MESSAGE=Change this message
+```
+
+`.gitignore`에는 다음 규칙을 추가하였다.
+
+```gitignore
+.env
+.env.*
+!.env.example
+```
+
+- `.env`: 실제 환경변수 파일 제외
+- `.env.*`: 환경별 추가 파일 제외
+- `!.env.example`: 공유 가능한 예제 파일은 예외적으로 Git에 포함
+
+#### 환경변수 미적용 오류
+
+처음에는 파일을 생성하고 편집기에서 저장하지 않은 상태로 `docker compose config`를 실행하여 다음 경고가 발생하였다.
+
+```text
+The "WEB_PORT" variable is not set. Defaulting to a blank string.
+The "PRACTICE_MESSAGE" variable is not set. Defaulting to a blank string.
+```
+
+또한 `.gitignore`가 저장되지 않아 `git status`에서 `.env`가 추적되지 않은 파일로 표시되었다. 파일 내용을 작성한 뒤 모든 파일을 저장하고 다시 검증하여 해결하였다.
+
+![환경변수 파일 미저장 오류](<images/보너스 환경설정보호2.png>)
+
+다음 명령으로 최종 설정과 제외 규칙을 확인하였다.
+
+```powershell
+docker compose config
+git check-ignore -v .env
+git status --short -- compose.yaml .env .env.example .gitignore
+```
+
+`docker compose config`에서 `published: "8084"`와 환경변수 값이 출력되었으며, `git check-ignore` 결과에서 `.gitignore:1:.env` 규칙이 적용된 것을 확인하였다. `git status`에는 `.env`가 나타나지 않고 `compose.yaml`, `.env.example`, `.gitignore`만 나타났다.
+
+![환경변수 적용 및 Git 제외 확인](<images/보너스 환경설정보호4.png>)
+
+---
+
+### 29.5 멀티 컨테이너와 Compose 네트워크 검증
+
+변경된 설정을 적용하였다.
+
+```powershell
+docker compose up -d --build
+docker compose ps
+```
+
+`web`과 `env-check` 두 서비스가 모두 `Up` 상태인 것을 확인하였다.
+
+![Compose 멀티 컨테이너 Build](<images/보너스 네트워크 빌드.png>)
+
+![Compose 멀티 컨테이너 상태](<images/보너스 네트워크 docker ps.png>)
+
+환경변수 전달은 로그와 컨테이너 내부 조회를 각각 사용해 검증하였다.
+
+```powershell
+docker compose logs env-check
+docker compose exec env-check printenv PRACTICE_MESSAGE
+```
+
+두 명령 모두 다음 값을 출력하였다.
+
+```text
+Environment variable loaded successfully
+```
+
+Compose가 자동 생성한 기본 네트워크의 컨테이너 목록을 확인하였다.
+
+```powershell
+docker network inspect docker-web-practice_default --format '{{range .Containers}}{{println .Name}}{{end}}'
+```
+
+결과에 다음 두 컨테이너가 모두 출력되었다.
+
+```text
+compose-env-practice
+compose-web-practice
+```
+
+따라서 서로 다른 두 서비스가 같은 Compose 네트워크에 연결된 것을 확인하였다. 같은 Compose 네트워크의 컨테이너는 일반적으로 IP 주소를 직접 기억하는 대신 서비스 이름을 통해 서로를 찾을 수 있다.
+
+![환경변수와 Compose 네트워크 검증](<images/보너스 네트워크 exec inspect.png>)
+
+브라우저에서 `.env`로 지정한 `http://localhost:8084`에 접속하여 웹 서버도 정상적으로 동작함을 확인하였다.
+
+![환경변수 포트 웹페이지](<images/보너스 네트워크결과웹.png>)
+
+---
+
+### 29.6 Compose 종료와 리소스 상태 확인
+
+Compose가 생성한 리소스를 프로젝트 단위로 정리하였다.
+
+```powershell
+docker compose down
+docker compose ps
+docker network ls --filter name=docker-web-practice_default
+docker images docker-web-practice
+```
+
+`docker compose down` 결과:
+
+- `compose-web-practice` 컨테이너 제거
+- `compose-env-practice` 컨테이너 제거
+- `docker-web-practice_default` 네트워크 제거
+- Build된 `docker-web-practice:compose` 이미지는 유지
+
+즉, `down`은 기본적으로 Compose 컨테이너와 네트워크를 정리하지만 Build한 이미지까지 자동 삭제하지는 않는다.
+
+![Compose 종료와 이미지 유지 확인](<images/보너스 컴포즈종료.png>)
+
+---
+
+### 29.7 HTTPS와 SSH 인증 차이
+
+처음 저장소의 `origin`은 HTTPS 주소를 사용하였다.
+
+```text
+https://github.com/kahanis-lab/docker-web-practice.git
+```
+
+보너스 실습에서는 GitHub 계정에 SSH 공개 키를 등록하고 다음 주소로 변경하였다.
+
+```text
+git@github.com:kahanis-lab/docker-web-practice.git
+```
+
+| HTTPS | SSH |
+|---|---|
+| HTTPS 프로토콜 사용 | SSH 프로토콜 사용 |
+| Git Credential Manager, Token 등으로 인증 | 공개 키와 개인 키 쌍으로 인증 |
+| 원격 주소가 `https://...` 형태 | 원격 주소가 `git@github.com:...` 형태 |
+| 자격 증명 관리자가 로그인을 보조 | GitHub에 공개 키를 등록하고 개인 키로 본인임을 증명 |
+
+SSH 개인 키와 공개 키의 역할은 다음과 같다.
+
+- 개인 키 `id_ed25519`: 사용자 PC에만 보관하며 절대 공개하거나 커밋하지 않음
+- 공개 키 `id_ed25519.pub`: GitHub 계정에 등록 가능
+- Fingerprint: 공개 키를 짧게 식별하기 위한 SHA256 지문
+- `known_hosts`: 접속한 원격 서버의 신원을 저장하여 다음 접속에서 같은 서버인지 확인
+
+---
+
+### 29.8 GitHub SSH 키 생성 및 등록
+
+기존 SSH 폴더와 키가 없는 것을 확인한 뒤 ED25519 키를 생성하였다.
+
+```powershell
+ssh -V
+Test-Path "$env:USERPROFILE\.ssh"
+Get-ChildItem "$env:USERPROFILE\.ssh" -Force -ErrorAction SilentlyContinue
+ssh-keygen -t ed25519 -C "windows-docker-practice"
+```
+
+`id_ed25519` 개인 키와 `id_ed25519.pub` 공개 키가 생성되었다. 공개 키만 GitHub의 `Settings > SSH and GPG keys > New SSH key`에 `Authentication Key`로 등록하였다.
+
+![GitHub SSH 공개 키 등록](<images/보너스 키 추가1.png>)
+
+#### 잘못된 공개 키 붙여넣기 오류
+
+처음에는 GitHub Key 입력란에 공개 키 전체가 아닌 다른 클립보드 내용이 들어가 다음 오류가 발생하였다.
+
+```text
+Key is invalid. You must supply a key in OpenSSH public key format
+```
+
+GitHub에 등록해야 하는 공개 키는 다음과 같은 한 줄 형식이다.
+
+```text
+ssh-ed25519 <PUBLIC_KEY_DATA> windows-docker-practice
+```
+
+SHA256 지문, randomart, 개인 키 또는 `Ctrl+V`라는 글자를 입력하는 것이 아니다. 다음 명령으로 `.pub` 파일 전체를 클립보드에 넣은 직후 GitHub 입력란에서 실제 키보드 단축키 `Ctrl+V`를 사용하여 해결하였다.
+
+```powershell
+$publicKey = (Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub" -Raw).Trim()
+Set-Clipboard -Value $publicKey
+```
+
+공개 키는 GitHub 등록에 사용할 수 있지만 개인 키 `id_ed25519`의 내용은 어떤 문서, 로그, 스크린샷에도 포함하지 않았다.
+
+---
+
+### 29.9 SSH 인증과 원격 저장소 전환 검증
+
+GitHub SSH 인증을 테스트하였다.
+
+```powershell
+ssh -T git@github.com
+```
+
+첫 접속에서는 GitHub 서버의 Fingerprint를 확인하고 `yes`를 입력하여 `known_hosts`에 등록하였다. 이후 다음 성공 문구를 확인하였다.
+
+```text
+Hi kahanis-lab! You've successfully authenticated, but GitHub does not provide shell access.
+```
+
+GitHub가 일반 서버 셸을 제공하지 않으므로 명령이 종료될 때 터미널에서 실패 표시가 나타날 수 있지만, `successfully authenticated`는 SSH 사용자 인증이 성공했다는 의미이다.
+
+원격 저장소 주소를 HTTPS에서 SSH로 변경하였다.
+
+```powershell
+git remote -v
+git remote set-url origin git@github.com:kahanis-lab/docker-web-practice.git
+git remote -v
+git ls-remote origin HEAD
+```
+
+변경 후 Fetch와 Push 주소가 모두 다음과 같이 출력되었다.
+
+```text
+origin  git@github.com:kahanis-lab/docker-web-practice.git (fetch)
+origin  git@github.com:kahanis-lab/docker-web-practice.git (push)
+```
+
+`git ls-remote origin HEAD`가 원격 저장소의 HEAD 커밋 해시를 반환하여 SSH를 통한 실제 원격 읽기까지 정상임을 확인하였다.
+
+![GitHub SSH 인증 및 원격 연결 검증](<images/보너스 키확인1.png>)
+
+---
+
+### 29.10 보안 점검
+
+보너스 실습에서 다음 보안 원칙을 적용하였다.
+
+- `.env`는 `.gitignore`에 추가하여 Git에서 제외
+- 공유가 필요한 변수 이름은 `.env.example`에 예시값으로 기록
+- SSH 개인 키 `id_ed25519`은 사용자 PC의 `.ssh` 폴더에만 보관
+- GitHub에는 공개 키 `id_ed25519.pub`만 등록
+- 공개 README에는 개인 키, 비밀번호, 인증 코드, Token을 기록하지 않음
+- 전체 공개 키 문자열 대신 등록 완료 화면과 SHA256 Fingerprint로 검증
+- `git status`를 사용해 `.env`가 스테이징되지 않는지 확인
+
+환경변수는 설정을 코드와 분리하는 데 유용하지만 환경변수 자체가 자동으로 암호화되는 것은 아니다. 실제 비밀번호와 API 키는 공개 저장소에 커밋하지 않고 GitHub Secrets, Docker Secrets 또는 별도의 비밀 관리 도구를 사용하는 것이 안전하다.
+
+---
+
+### 29.11 보너스 학습 정리
+
+- Docker Compose는 여러 컨테이너의 실행 설정을 `compose.yaml`에 문서화한다.
+- `docker compose config`는 실행 전에 YAML과 환경변수 치환 결과를 검사한다.
+- Compose는 프로젝트 전용 기본 네트워크를 자동 생성한다.
+- 같은 Compose 네트워크의 서비스는 서비스 이름을 기준으로 통신할 수 있다.
+- `.env`를 사용하면 포트와 실행 설정을 Compose 파일에서 분리할 수 있다.
+- `.env.example`은 실제 비밀값 없이 필요한 변수 형식을 협업자에게 전달한다.
+- `docker compose up`, `ps`, `logs`, `exec`, `down`으로 여러 서비스를 일관되게 운영할 수 있다.
+- HTTPS와 SSH는 모두 GitHub 원격 저장소에 접근할 수 있지만 인증 방법이 다르다.
+- SSH에서는 공개 키를 GitHub에 등록하고 개인 키는 사용자 PC에만 보관한다.
+- `ssh -T`와 `git ls-remote`를 함께 사용하여 인증 성공과 실제 저장소 접근을 각각 검증할 수 있다.
+
+보너스 실습을 통해 단일 컨테이너 실행에서 더 나아가, 여러 서비스의 선언적 구성, 환경별 설정 분리, 네트워크 자동 구성, 안전한 GitHub 인증 흐름까지 직접 구성하고 설명할 수 있게 되었다.
